@@ -7,7 +7,7 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Empty.h>
 #include <string>
-//papoumod
+//patrick-mod
 #include <boost/algorithm/clamp.hpp>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
@@ -37,7 +37,7 @@ int main(int argc, char** argv)
   uint8_t last_received_message_number;
   bool received_message = false;
   int data_packet_start;
-  //papoumod
+  //patrick-mod
   using boost::algorithm::clamp;
 
   tf::Quaternion orientation;
@@ -198,7 +198,7 @@ int main(int argc, char** argv)
 				| 0xff &(char)input[data_packet_start + 33]);
                 
 
-		//papoumod == set to local time for onboard companion computer		
+		//patrick-mod == set to local time for onboard companion computer		
 		ros::Time measurement_time = ros::Time::now() + ros::Duration(time_offset_in_seconds);
 		//ros::Time measurement_time(ts / 1000, (ts % 1000) * 1000*1000);  // sec, nsec
 
