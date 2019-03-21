@@ -1,7 +1,7 @@
 # ROVIO
 Visual Odometry System using MPU9250 IMU and Ueye Global Shutter Camera
 
-
+https://files.gitter.im/ArduPilot/VisionProjects/eJ5O/image.png
 
 Building and Testing a Monocular Visual Odometry System
 
@@ -10,7 +10,6 @@ Since the addition of VISION_POSITION_ESTIMATE to Ardupilot, a new field of expe
 Visual Inertial Odometry
 Using a camera system and an Inertial Measurement Unit - IMU , we can estimate a 6 DoF (Degree of Freedom) state corresponding to 3D position (xyz) and 3 Axis rotation (roll-pitch-yaw), in relation to a fixed reference W (World/ Map / Home). 
 
--- Insert image ---
 https://www.researchgate.net/publication/319235394/figure/fig4/AS:614047967879181@1523411852971/Coordinate-system-definitions-6-There-are-5-frames-world-W-odometry-O-body-B-camera.png
 
 
@@ -35,7 +34,7 @@ C) The Flight Controler : On this system I am using the BeagleBone Black with a 
  
 The Visual Inertial sensor
 
----insert picture of the camera--
+https://files.gitter.im/patrickpoirier51/ZJsM/image.png
 
 Inspired by this excellent blog, http://grauonline.de/wordpress/?page_id=1951, I decided to build my own sensor.
 Searching on EBAY for global shutter cameras , I ordered two UEye-1220LE cameras at a fraction of the price and replaced the lens with a wide angle (Fisheye) M12. After some experimentation, I was able to make it run as a calibrated ROS camera. 
