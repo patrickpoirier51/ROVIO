@@ -37,7 +37,7 @@ The Visual Inertial sensor
 https://files.gitter.im/patrickpoirier51/ZJsM/image.png
 
 Inspired by this excellent blog, http://grauonline.de/wordpress/?page_id=1951, I decided to build my own sensor.
-Searching on EBAY for global shutter cameras , I ordered two UEye-1220LE cameras at a fraction of the price and replaced the lens with a wide angle (Fisheye) M12. After some experimentation, I was able to make it run as a calibrated ROS camera. 
+Searching on EBAY for global shutter cameras , I ordered two UEye-1220LE cameras at a fraction of the price and replaced the lens with a 1/2.5" 1.7mm 5MP M12 IR Blocked Wide Angle FPV Camera Lens. After some experimentation, I was able to make it run as a calibrated ROS camera. 
 
 Camera and IMU synchronization
 Next step is making the IMU sensor device, based on a MPU9250 connected to an Arduino Pro Mini using the I2C bus.
