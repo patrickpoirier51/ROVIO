@@ -146,8 +146,8 @@ int main(int argc, char** argv)
                 // http://www.i2cdevlib.com/forums/topic/106-get-angular-velocity-from-mpu-6050/
                 // FIFO frequency 100 Hz -> factor 10 ?
                 // seems 25 is the right factor
-                //TODO: check / test if rotational velocities are correct -- papoumod from 25 to 5
-		//papoumod == add clamping 
+                //TODO: check / test if rotational velocities are correct -- patrick-mod from 25 to 5
+		//patrick-mod == add clamping 
 		double min = -8.0;
 		double max = 8.0;
                 double gxf = clamp ((gx * (4000.0/65536.0) * (M_PI/180.0) * 22.0), min, max);
