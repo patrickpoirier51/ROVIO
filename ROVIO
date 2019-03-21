@@ -1,0 +1,429 @@
+ROVIO Robust Visual Inertial Odometry)
+https://github.com/ethz-asl/rovio
+
+============
+Prereq:
+Kindr - Kinematics and Dynamics for Robotics
+https://github.com/ethz-asl/kindr
+sudo add-apt-repository ppa:ethz-asl/common
+sudo apt-get update
+sudo apt-get install ros-indigo-kindr-*
+ 
+Eigen 
+http://eigen.tuxfamily.org/index.php?title=Main_Page#Download
+extract to Eigen3
+mkdir Eigen3/build
+cd build
+cmake ..
+sudo make install
+
+ODROID Note = had to apt-get install gfortran
+=============
+
+
+BUILDING:
+catkin_ws/src
+git clone https://github.com/ethz-asl/rovio.git
+
+Install without opengl scene
+add lightweight_filtering
+cd rovio 
+git submodule update --init --recursive
+
+NOTE 
+Reduced features to 15 and increase trackingUpperBound and trackingLowerBound to 0.999 and reduce the patch size to 4 
+
+LIMIT MEMORY & CONCURENCY !!!!
+catkin build rovio -j 1 --mem-limit 50% --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+Install with opengl scene  (not tested yet !!!!)
+Additional dependencies: opengl, glut, glew (sudo apt-get install freeglut3-dev libglew-dev)
+
+Not tested yet == must limit..
+catkin build rovio -j 1 --mem-limit 50% --cmake-args -DCMAKE_BUILD_TYPE=Release -DMAKE_SCENE=ON
+
+
+ODROID Note == Need Swap Space == with swap we dont need ==mem-limit !!
+https://askubuntu.com/questions/173676/how-to-make-a-usb-stick-swap-disk
+
+Make sure your USB stick is connected. In a terminal type:
+sudo blkid
+It will list all your connected drives. 
+Search for your USB stick you want to use as swap and copy the UUID 
+(everything inside these quotes UUID="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX").
+This represents the individual name of your device.
+Also note the /dev/XXX point of your device.
+
+Now unmount your device by typing:
+sudo umount /dev/XXX (where XXX represents your device name)
+
+Format your USB stick as swap, e.g. by terminal
+sudo mkswap /dev/XXX (<-- be sure to use the correct device name here or you'll probably end up formatting the wrong drive!)
+
+Now you have to edit your /etc/fstab file, so type
+gksudo gedit /etc/fstab
+and enter the following
+UUID=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX none swap sw,pri=5 0 0
+
+Now type
+sudo swapon -a
+
+Look at top == Swap Space Available 
+============
+TESTING
+The rovio_node.launch file loads parameters such that ROVIO runs properly on the Euroc datasets.
+mod the launch file to add correct path and testset
+
+https://github.com/ethz-asl/rovio/issues/151
+I suggest you start downloading the Euroc dataset here https://github.com/ethz-asl/rovio#euroc-datasets. 
+
+rosbag play MH_03_medium.bag.part
+roslaunch rovio rovio_node.launch
+
+Wow .... so nice  !!
+
+===================================
+
+Camera IMU implementation
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Ueye configuration file 
+We need to get the camera on EDGE ENHANCEMENT
+ROS driver has not implemented, so using ueyedemo, set to SHARP EDGE ENHANCEMENT and save file in  
+~/.ros/camera_conf/<camera_name>.ini 
+
+It will containn the value
+EdgeEnhancementFactor=9
+
+Then when you launch the ROS cam0_xxx.launch
+the Image will be SHARP
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+http://grauonline.de/wordpress/?page_id=2014
+https://github.com/ethz-asl/rovio/issues/108
+
+roslaunch mpu6050_serial_to_imu demo.launch
+roslaunch mono_ext_trig.launch
+rosrun camera_calibration cameracalibrator.py –size 9×7 –square 0.025 image:=/cam0/image_raw camera:=/cam0
+ost.yml file is in the /tmp/calibrationdata.tar.gz file saved during the calibraton process
+
+
+!!!!!!!!!!!!!!WORK on 30 MARS!!!!!!!!!!!!!!!!!!!
+Replaced  imu/data  with imu0:   === a remap could be possible 
+
+  ros::NodeHandle nh("");
+  ros::Publisher imu_pub = nh.advertise<sensor_msgs::Imu>("imu0", 50);
+  ros::Publisher imu_temperature_pub = nh.advertise<sensor_msgs::Temperature>("temperature", 50);
+  ros::Publisher trigger_time_pub = nh.advertise<sensor_msgs::TimeReference>("trigger_time", 50);
+
++++++++++++++++++++++++++++++++++++++++
+KALIBR 
+
+Record test:
+roslaunch cam0_ext_752.launch
+roslaunch cam0_ext_400.launch == do a cold restart of Arduino-IMU so it is standing by
+roslaunch mpu6050_serial_to_imu demo.launch
+rosrun image_view image_view image:=/cam0/image_raw
+
+rosbag record /cam0/image_raw /cam0/camera_info /imu0 -O ueye_kalibr.bag
+
+Aim at the A3 ARUCO TARGRT
+GO SLOWLY
+DO GENTLE MOVES
+
+Ctrl-C == Saves BAG
+
+https://github.com/KumarRobotics/msckf_vio/issues/22
+Further, Kalibr does not do a IMU intrinsic calibration, so if you read the IMU intrinsics off the manufacturer's specifications you might want to increase each term by a magnitude (i.e. if it says accelerometer noise density was 1e-4, increase it to 1e-3).
+
+If I'm correct, you are supposed to move the camera rig while exciting all axes (don't forget to rotate), and move in such a way you don't introduce motion blur. Remember if you have blurry images in the calibration set you increase reprojection errors! And most important of all, don't bump the rig on anything, spikes ruins your calibration.
+
+Doing calibration sucks...takes time and determination ... its an art..
++++++++++++++++++++++++++++++++++++++++
+
+CALIBRATION (see below for yaml formats)
+
+kalibr_calibrate_imu_camera --cam ueye.yaml --imu imu.yaml --target april_6x6.yaml  --bag ueye_kalibr.bag --verbose
+
+kalibr_calibrate_imu_camera --cam ueye_400_fisheye.yaml --imu imu2.yaml --target april_6x6.yaml  --bag ueye_kalibr.bag --verbose
+
+options  --verbose --bag-from-to 5 25
+
+--------------------------------------------------
+!!!!!!!!!!from video https://www.youtube.com/watch?v=puNXsnrYWTY  !!!!!!!!!!!!!
+====> 2 STEPS:
+STEP1
+./kalibr_calibrate_cameras --target dynamic/april_6x6.yaml --bag dynamic/dynamic.bag --models pinhole-equi --topics /cam0/image_raw
+run
+
+It creates a camchain_xxx_xxx.yaml == I copied to /dynamic ac renamed camchain.yaml
+Took values for imu_mpu9250 from allan_result (!!inverted the values!! to correspond to https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model#from-the-allan-standard-deviation-ad
+
+STEP2 
+./kalibr_calibrate_imu_camera --target dynamic/april_6x6.yaml --bag dynamic/dynamic.bag --cam dynamic/camchain.yaml --imu dynamic/imu_mpu9250.yaml
+
+
+==========ROVIO YAML FORMATS================
+cam0:
+  camera_model: pinhole
+  intrinsics: [532.563459, 533.954422, 368.725825, 239.719289]
+  distortion_model: equidistant
+  distortion_coeffs: [-0.413844, 0.137047, -0.000844, -0.001540]
+  T_cam_imu:
+  - [0.9269800931721481, -0.36725476693484016, -0.07636650460895798, 0.0563782982993317]
+  - [0.22057260345152588, 0.698335843399684, -0.6809366904711965, 0.18265409852208803]
+  - [0.30340671295996346, 0.6143703980392338, 0.7283497652528914, 0.20417028857341785]
+  - [0.0, 0.0, 0.0, 1.0]
+  cam_overlaps: [0]
+  rostopic: /cam0/image_raw
+  resolution: [752, 480]
+
+------------------------------------
+imu.yaml
+accelerometer_noise_density: 2.24e-03   #Noise density (continuous-time)
+accelerometer_random_walk:   7.53e-05   #Bias random walk
+
+#Gyroscopes
+gyroscope_noise_density:     18.4e-03   #Noise density (continuous-time) specs are e-
+gyroscope_random_walk:       1.08e-05   #Bias random walk
+
+cam_overlaps: [0]
+rostopic:                    /imu0      #the IMU ROS topic
+update_rate:                 200.0      #Hz (for discretization of the values above)
+
+
+------------------------------------------
+FROM https://github.com/KumarRobotics/msckf_vio/issues/22
+
+imu2.yaml
+# Accelerometers
+accelerometer_noise_density: 0.661510573734  # Noise density (continuous-time)
+accelerometer_random_walk: 0.0116244166649  # Bias random walk
+
+# Gyroscopes
+gyroscope_noise_density: 0.0256803279043  # Noise density (continuous-time)
+gyroscope_random_walk: 0.00110904563018  # Bias random walk
+
+rostopic: /gvio/imu  # the IMU ROS topic
+update_rate: 200.454215255  # Hz (for discretization of the values above)
+
+
+=============================
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Inspect the result plots
+make sure the predicted accelerations & angular velocities fit the IMU measurements
+reprojection errors should be in a normal range (0.1-0.2 px for a good calibration)
+The best so far is 1.3 px......
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+best as of 14 Avril :-)
+After Optimization (Results)
+==================
+Normalized Residuals
+----------------------------
+Reprojection error (cam0):     mean 0.983305862615, median 0.826258617546, std: 0.695036926656
+Gyroscope error (imu0):        mean 0.544574888344, median 0.435356412376, std: 0.42285050677
+Accelerometer error (imu0):    mean 0.116443512173, median 0.0991466773087, std: 0.076420238827
+
+DEC 26 Results with 2 stage calibration as per video https://www.youtube.com/watch?v=puNXsnrYWTY
+After Optimization (Results)
+==================
+Reprojection error squarred (cam0):  mean 0.0906873040882, median 0.0600480738171, std: 0.107175680854
+Gyro error squarred (imu0):          mean 0.380318265365, median 0.178537744166, std: 0.596886587054
+Accelerometer error squarred (imu0): mean 0.332284720636, median 0.160790243206, std: 0.494718557609
+
+
+=================
+CONVERSION to ROVIO using KALIBR utilities
+Convert the calibration results to rovio config file:
+kalibr_rovio_config --cam camchain-imucam-ueye_kalibr.yaml
+
+written 'rovio_cam0.yaml'
+written 'rovio_test.info'
+!!!!!!!!!!!!
+rovio has NO parser == rename rovio_test.info rovio.info
+For Monocular  = Remove Cam1 
+!!!!!!!!!!!!!
+
+
+////////alternative////
+copy camera calibration result camchain into rovio format manually
+
+copy camera_imu resutlt .txt file into rovio.info
+Transformation (cam0):
+-----------------------
+T_ci:  (imu to cam0): [m]
+[[ 0.00116138 -0.99999222  0.00376863 -0.01949958]
+ [-0.02376093 -0.00379516 -0.99971047 -0.03522465]
+ [ 0.99971699  0.00107149 -0.02376516 -0.05480922]
+ [ 0.          0.          0.          1.        ]]
+
+
+
+  CalibrationFile  ;            Camera-Calibration file for intrinsics
+  qCM_x  0.506636367466;                               X-entry of IMU to Camera quaterion (Hamilton)
+  qCM_y  -0.487728686338;                               Y-entry of IMU to Camera quaterion (Hamilton)
+  qCM_z  0.484221221163;                               Z-entry of IMU to Camera quaterion (Hamilton)
+  qCM_w  0.520547911973;                               W-entry of IMU to Camera quaterion (Hamilton)
+  MrMC_x -0.261215677575;                               X-entry of IMU to Camera vector (expressed in IMU CF) [m]
+  MrMC_y 0.010050817045;                               Y-entry of IMU to Camera vector (expressed in IMU CF) [m]
+  MrMC_z 0.0470080278844;                               Z-entry of IMU to Camera vector (expressed in IMU CF) [m]
+
+...oups... hwdo you convert to Hamilton ^!^!^
+
+////////////////////////////////
+
+
+rovio_node.launch
+<?xml version="1.0" encoding="UTF-8"?> 
+<launch>
+  <node pkg="rovio" type="rovio_node" name="rovio" output="screen">
+  <param name="filter_config" value="$(find rovio)/cfg/rovio.info"/>
+  <param name="camera0_config" value="$(find rovio)/cfg/rovio_cam0.yaml"/>
+  <param name="imu_topic_name" value="/imu0"/>
+  <param name="cam0_topic_name" value="/cam0/image_raw"/>
+  </node>
+</launch>
+
+=============================
+Tuning configuration
+
+rovio.info
+https://github.com/ethz-asl/rovio/wiki/Configuration
+Camera Extrinsics
+qCM (quaternion representing the rotation from IMU to camera in Hamilton-convention
+One initial guess should end up in a stable estimation and you can read the 
+calibrated qCM and MrMC by enabling the verbose in rovio.info.
+well.............IMU is not OK...
+If you do not know the relative orientation between your IMU and camera you can try the different 90 degrees rotation that exists in 3D (e.g. (0,0,0,1), (0.707,0,0,0.707), (1,0,0,0), 
+(-0.707,0,0,0.707), ..., there are 24 different possibilities)
+
+From Aero hub === Make it start
+The last step is to set the extrinsic parameters of ROVIO. The rotation quaternion is the most important to set. In the specific case of the Intel Aero RTF, the quaternion is :  qCM_x = 0.5, qCM_y = -0.5, qCM_z = 0.5, qCM_w = 0.5.
+Tuning rovio.info
+You should probably adapt the values of the PredictionNoise. Since you typically have a cheap IMU on smartphone you should increase the values of vel, acb, gyb, and att. Try to increase them separetely by factors of 10 until you have nice results. avoid to large values on gyb and acb.
+
+https://github.com/ethz-asl/rovio/issues/108
+For low-cost IMUs you should ideally increase the noise covariance. We recently did experiments with a BMI055 and increased the noise parameters of the accelerometer ("vel") and the gyroscope ("att") by a factor of 100. Obtaining higher drift for such a setup is just normal.
+
+https://github.com/ethz-asl/rovio/issues/70
+https://github.com/ethz-asl/rovio/issues/40
+
+my experiments
+   MotionDetection
+    {
+      isEnabled 0;                      Is the motion detection enabled  == changed form 1 to 0
+      rateOfMovingFeaturesTh 0.5;               Amount of feature with motion for overall motion detection
+      pixelCoordinateMotionTh 1.0;              Threshold for motion detection for patched [pixels]
+      minFeatureCountForNoMotionDetection 5;          Min feature count in frame for motion detection
+  }
+==========================
+
+Tuning computational costs
+
+The following parameters can be adapted to reduce computation costs (some of these parameters must be set before compilation):
+
+    Reduce feature count to 15, minimum 10
+    Reduce the patch size to 6x6 or even 4x4
+    If no external pose measurements are used nPose should definetely be set to 0
+
+    Eventually disable patch warping if your application does not involve too fast motions
+    Reduce the number of processed image levels by getting startLevel and endLevel closer to each other, e.g. 2 and 1.
+    Set alignMaxUniSample to 0 such that only 1 sample is evaluated when searching patches
+
+
+
++++++
+Regarding reducing the system load, multiple approaches to try within rovio:
+
+    Reduce feature count, 15 is 'ok'
+    Reduce number of levels in the image - pyramid
+    Disable patch-warping
+    Use 6x6 patches instead of 8x8 patches
+    set alignMaxUniSample to zero to not distribute samples when uncertainty increases
+
+++++++
+The queue size for image subscriber is set to 1000. I think when the embedded system has too much computation load, it will keep processing the delayed image. However, if we want to test drone fly with ROVIO, we would rather to drop images to get current pose. 
+
+
+==========================
+
+Rovio Parameters
+
+You can set many parameters within rovio.info. A short description is provided for every parameter. Here are the mose important parameters:
+
+    Common - doVECalibration: should the IMU-Camera extrinsics be co-estimated online.
+    Common - vebose: enables the verbose
+    CameraX - CalibrationFile: path to the calibration file of camera X
+    CameraX - qCM: quaternion representing the orientation of camera X with respect to the IMU coordinate frame
+    CameraX - MrMC: position of camera X with respect to the IMU coordinate frame
+    Init - State - ***: initial values for the rovio filter state
+    Init - Covariance - ***: covariance of the initial values of the rovio filter state
+    ImgUpdate - useDirectMethod: should the EKF use the photometric error (true) or the repojection error (false)
+    ImgUpdate - startLevel: highest pyramid level employed for the photometric error, must be smaller than ROVIO_NLEVELS
+    ImgUpdate - endLevel: lowest pyramid level employed for the photometric error
+    ImgUpdate - UpdateNoise - nor: covariance used for the repojection error (if not using the photometric error)
+    ImgUpdate - UpdateNoise - int: covariance used for the photometric error
+    ImgUpdate - initCovFeature_0: initial covariance of the distance parameter
+    ImgUpdate - initDepth: initial distance parameter guess of a feature
+    ImgUpdate - penaltyDistance: increase to 100 for outdoor environment to avoid clustering of features on horizon
+    Prediction - PredictionNoise - ***: prediction noise employed by EKF, should be adapted to the IMU specification
+    PoseUpdate - ***: parameters used if additional external pose measurements are provided, e.g. can be used for fusing GPS measurements
+
+
+
+=====================================
+
+!!!AAEON CONFIG !!!!!
+rovio_node.cpp
+static constexpr int nMax_ = 12; // Maximal number of considered features in the filter state.
+static constexpr int nLevels_ = 4; // // Total number of pyramid levels considered.
+static constexpr int patchSize_ = 4; // Edge length of the patches (in pixel). Must be a multiple of 2!
+static constexpr int nPose_ = 0; // Additional pose states.
+
+rovio.info
+ImgUpdate
+{
+	updateVecNormTermination 1e-4;
+	maxNumIteration 20;
+    doPatchWarping true;				Should the patches be warped
+    doFrameVisualisation true;				Should the frames be visualized
+    visualizePatches false;				Should the patches be visualized
+    useDirectMethod true;				Should the EKF-innovation be based on direct intensity error (o.w. reprojection error)
+    startLevel 2;			Highest patch level which is being employed (must be smaller than the hardcoded template parameter)
+    endLevel 1;						Lowest patch level which is being employed
+    nDetectionBuckets 100;				Number of discretization buckets used during the candidates selection
+
+ alignMaxUniSample 0;
+
+======aaeon launch sequence===
+roscore
+roslaunch mpu6050_serial_to_imu demo.launch
+roslaunch ueye_cam cam0_ext_400.launch 
+roslaunch rovio rovio_ueye.launch
+
+==============================
+
+original
+roslaunch rovio rovio_node.launch
+
+ueye
+roslaunch rovio rovio_ueye.launch
+
+
+
+
+=====================================================================
+Reset/Init Rovio with initial external pose
+https://github.com/ethz-asl/rovio/issues/41
+I want to init Rovio in the beginning with an initial pose, 
+and then if it ever loses track/diverges, reset Rovio to the last know good pose 
+(again from an external topic).
+
+https://github.com/ethz-asl/rovio/pull/58
+
+rosservice call /rovio/reset
+rosservice call /rovio/reset_to_pose call
+
+
+

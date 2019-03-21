@@ -1,0 +1,215 @@
+
+roscore
+roslaunch mpu6050_serial_to_imu demo.launch
+roslaunch ueye_cam cam0_ext_400.launch 
+roslaunch rovio rovio_ueye.launch
+
+--OR--
+roslaunch rovio rovio_full.launch
+
+
+MAVROS LAUNCH
+roslaunch mavros apm.launch fcu_url:=udp://0.0.0.0:14551@
+
+EDIT /opt/ros/kinetic/share/mavros/launch/apm_config.yaml
+timesync_rate: 0.0    # TIMESYNC rate in Hertz (feature disabled if 0.0)
+
+MAVROS INCREASE RATE! 
+rosrun mavros mavsys rate --all 100
+rosrun mavros mavsys rate --raw-sensors 100
+
+
+Within launch
+<node pkg="mavros" type="mavsys" name="mavsys" args="--wait rate --all 100" />
+
+
+ARDUPILOT LAUNCH
+sudo ./arducopter -C udp:192.168.8.34:14550 -D udp:10.0.0.2:14551
+
+
+==================================================
+
+
+----------CONFIG----------------
+I have the following parameters on my quad:
+AHRS_EKF_TYPE 2
+EKF2_ENABLE 1
+EKF3_ENABLE 0
+GPS_TYPE 0
+EK2_GPS_TYPE 3
+COMPASS_USE 0
+VISO_TYPE 0
+
+------GENERATED MESSAGES----------
+https://github.com/ethz-asl/rovio/blob/master/include/rovio/RovioNode.hpp
+// Advertise topics
+pubTransform_ = nh_.advertise<geometry_msgs::TransformStamped>("rovio/transform", 1);
+pubOdometry_ = nh_.advertise<nav_msgs::Odometry>("rovio/odometry", 1);
+pubPoseWithCovStamped_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("rovio/pose_with_covariance_stamped", 1);
+pubPcl_ = nh_.advertise<sensor_msgs::PointCloud2>("rovio/pcl", 1);
+pubPatch_ = nh_.advertise<sensor_msgs::PointCloud2>("rovio/patch", 1);
+pubMarkers_ = nh_.advertise<visualization_msgs::Marker>("rovio/markers", 1 );
+
+
+
+---MAVROS ----
+https://github.com/mavlink/mavros/blob/master/mavros_extras/src/plugins/vision_pose_estimate.cpp#L155
+	void vision_cov_cb(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &req)
+	{
+		Eigen::Affine3d tr;
+		tf::poseMsgToEigen(req->pose.pose, tr);
+
+		send_vision_estimate(req->header.stamp, tr, req->pose.covariance);
+}
+
+
+
+-----VISION_POSITION_ESTIMATE ( #102 )---------
+https://mavlink.io/en/messages/common.html#VISION_POSITION_ESTIMATE
+VISION_POSITION_ESTIMATE ( #102 )
+
+Global position/attitude estimate from a vision source.
+Field Name	Type	Units	Description
+usec	uint64_t	us	Timestamp (UNIX time or time since system boot)
+x	float	m	Global X position
+y	float	m	Global Y position
+z	float	m	Global Z position
+roll	float	rad	Roll angle
+pitch	float	rad	Pitch angle
+yaw	float	rad	Yaw angle
+covariance **	float[21]		Pose covariance matrix upper right triangular (first six entries are the first ROW, next five entries are the second ROW, etc.)
+
+
+
+.......................looks like a remap to me..................
+ Lets try
+ <remap from="rovio/pose_with_covariance_stamped" to="/mavros/vision_pose/pose_cov"/>
+
+    <!-- launch ROVIO -->
+  <node pkg="rovio" type="rovio_node" name="rovio" output="screen">
+  <param name="filter_config" value="$(find rovio)/cfg/rovio.info"/>
+  <param name="camera0_config" value="$(find rovio)/cfg/ueye_cam400_fisheye.yaml"/>
+  <remap from="rovio/pose_with_covariance_stamped" to="/mavros/vision_pose/pose_cov"/>
+ </node>
+
+
+
+
+YEP !!!!!!!!!  WORKS !!!!
+
+
+
+
+
+======ArduPilot ==== A little History==========
+Add ability to navigate using MAVLink vision messages & AP_NavEKF2: Enable fusion of external nav position data 
+https://github.com/ArduPilot/ardupilot/pull/7980/files
+
+-------
+https://github.com/ArduPilot/ardupilot/blob/master/libraries/GCS_MAVLink/GCS_Common.cpp#L2766
+void GCS_MAVLINK::handle_common_vision_position_estimate_data(const uint64_t usec,
+                                                              const float x,
+                                                              const float y,
+                                                              const float z,
+                                                              const float roll,
+                                                              const float pitch,
+                                                              const float yaw,
+							      const uint16_t payload_size)
+
+
+
+
+AP_NavEKF2: add external navigation data lag
+https://github.com/ArduPilot/ardupilot/pull/9658
+
+
+
+================================
+
+Rovio Parameters
+
+You can set many parameters within rovio.info. A short description is provided for every parameter. Here are the mose important parameters:
+
+    Common - doVECalibration: should the IMU-Camera extrinsics be co-estimated online.
+    Common - vebose: enables the verbose
+
+    CameraX - CalibrationFile: path to the calibration file of camera X
+    CameraX - qCM: quaternion representing the orientation of camera X with respect to the IMU coordinate frame
+    CameraX - MrMC: position of camera X with respect to the IMU coordinate frame
+
+    Init - State - ***: initial values for the rovio filter state
+    Init - Covariance - ***: covariance of the initial values of the rovio filter state
+
+    ImgUpdate -	doFrameVisualisation false;		Should the frames be visualized
+    ImgUpdate -	visualizePatches false;			Should the patches be visualized
+    ImgUpdate - useDirectMethod: should the EKF use the photometric error (true) or the repojection error (false)
+    ImgUpdate - startLevel: highest pyramid level employed for the photometric error, must be smaller than ROVIO_NLEVELS
+    ImgUpdate - endLevel: lowest pyramid level employed for the photometric error
+    ImgUpdate - UpdateNoise - nor: covariance used for the repojection error (if not using the photometric error)
+    ImgUpdate - UpdateNoise - int: covariance used for the photometric error
+    ImgUpdate - initCovFeature_0: initial covariance of the distance parameter
+    ImgUpdate - initDepth: initial distance parameter guess of a feature
+    ImgUpdate - penaltyDistance: increase to 100 for outdoor environment to avoid clustering of features on horizon
+
+    Prediction - PredictionNoise - ***: prediction noise employed by EKF, should be adapted to the IMU specification
+    PoseUpdate - ***: parameters used if additional external pose measurements are provided, e.g. can be used for fusing GPS measurements
+
+
+
+=============================================
+https://github.com/PX4/Devguide/blob/master/en/ros/external_position_estimation.md#relaying_pose_data_to_px4
+
+Visual Inertial Odometry (VIO) systems allow vehicles to navigate when a global position source is unavailable or unreliable (e.g. indoors, or when flying under a bridge. etc.). VIOdetermine a vehicle's pose (position and attitude) from "visual" information using onboard sensors to get pose data from the vehicle's perspective.
+Pose data can be used to update a PX4-based autopilot's local position estimate (relative to the local origin) and also can optionally also be fused into the vehicle attitude estimation.
+
+
+Getting Pose Data Into ROS
+MAVROS has plugins to relay a visual estimation from a VIO or MoCap system using the following pipelines:
+ROS 				MAVLink 	
+/mavros/vision_pose/pose 	VISION_POSITION_ESTIMATE
+
+
+If you're working with EKF2, only the "vision" pipelines are supported. To use MoCap data with EKF2 you will have to remap the pose topic that you get from MoCap:
+
+    MoCap ROS topics of type geometry_msgs/PoseStamped or geometry_msgs/PoseWithCovarianceStamped must be remapped to /mavros/vision_pose/pose. The geometry_msgs/PoseStamped topic is most common as MoCap doesn't usually have associated covariances to the data.
+
+
+
+
+=======KABIR'S EPIPHANY=====
+https://github.com/PX4/Firmware/pull/6074
+
+
+=====ETHZ DIY DRONE ====
+
+https://github.com/ethz-asl/mav_dji_ros_interface/wiki
+This repository presents a complete visual-inertial (VI-) odometry-aided MAV platform that makes use of off-the-shelf elements such as the device itself, a computer, and VI-sensor.
+
+
+====KABIR SERVICE CALLER FOR RESET==
+https://github.com/ethz-asl/rovio/issues/41
+
+RQT Service Caller PLUGIN
+Call 	/ROVIO/RESET
+
+Made a Python scrit :  rovio_reset.py
+#! /usr/bin/env python
+
+import rospy
+from std_srvs.srv import Empty
+
+rospy.init_node('rovio_reset')
+
+rospy.wait_for_service('/rovio/reset')
+rovio_reset = rospy.ServiceProxy('/rovio/reset', Empty)
+
+rovio_reset()
+
+
+===============================
+
+
+
+
+
+
