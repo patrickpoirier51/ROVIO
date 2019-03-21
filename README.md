@@ -40,10 +40,10 @@ Inspired by this excellent blog, http://grauonline.de/wordpress/?page_id=1951, I
 Searching on EBAY for global shutter cameras , I ordered two UEye-1220LE cameras at a fraction of the price and replaced the lens with a 1/2.5" 1.7mm 5MP M12 IR Blocked Wide Angle FPV Camera Lens. After some experimentation, I was able to make it run as a calibrated ROS camera. 
 
 Camera and IMU synchronization
-Next step is making the IMU sensor device, based on a MPU9250 connected to an Arduino Pro Mini using the I2C bus.
-I made a simple "thru-hole" board, soldered the components and connectors, mounted this board on the back of camera using nylon posts and inserted the IMU module into connector so it is sitting on top of camera.
+Next step is making the IMU sensor device, based on a MPU9250 connected to an Arduino Pro Mini (5V ATMEGA328P) using the I2C bus.
+I made a simple "thru-hole" board, soldered the components and connectors, mounted this board on the back of camera using nylon posts and inserted the IMU module into connector so it is sitting on top of camera.The connections are Serial to CC , SDA-SCL, INTERRUPT_PIN and TRIGGER_PIN for Camera Shutter.
  
-The IMU is free-running with its own internal DMP processor that generates a stable 200 Hz interrupted updates of the GYRO and ACC readings. The Arduino reads the IM, and based on a predefined number of interrupts, it will triggers the camera shutter(via the trigger line) to capture a new image. This way we have a continous 200 hz flow of IMU data with a 20 HZ image capture that is hardware synchronized with the IMU.  I did some modification on the Arduino code and on the ROS Node so it can be more stable and less prone to drift.
+The IMU is free-running with its own internal DMP processor that generates a stable 200 Hz interrupted updates of the GYRO and ACC readings. The Arduino reads the IM, and based on a predefined number of interrupts, it will triggers the camera shutter(via the trigger line) to capture a new image. This way we have a continous 200 hz flow of IMU data with a 20 HZ image capture that is hardware synchronized with the IMU.  I did some modification on the ROS Node so it can be more stable and less prone to drift, look for patrick-mos in mpu6050_serial_to_imu_node.cpp, I havent changed name from mpu6050 to mpu9250 as the DMP code ant the pins are the same between models.
 
 
 The state estimator : ROVIO
